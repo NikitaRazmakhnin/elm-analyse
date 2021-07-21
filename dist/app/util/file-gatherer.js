@@ -62,12 +62,14 @@ function getDependencyFiles(directory, dep) {
     var depPath = directory + "/elm-stuff/packages/" + dep.name + "/" + dep.version;
     var depPackageFile = require(depPath + '/elm.json');
     var unfilteredTargetFiles = targetFilesForPathAndPackage(directory, depPath, depPackageFile);
-    var exposedModules = depPackageFile['exposed-modules'].map(function (x) {
-        return _path.normalize('/' + x.replace(new RegExp('\\.', 'g'), '/') + '.elm');
-    });
-    return unfilteredTargetFiles.filter(function (x) {
-        return exposedModules.filter(function (e) { return lodash_1.default.endsWith(x, e); })[0];
-    });
+    var rawExposedModules = depPackageFile['exposed-modules'];
+    var moduleNameToPath = function (x) { return _path.normalize('/' + x.replace(new RegExp('\\.', 'g'), '/') + '.elm'); };
+    var exposedModules = rawExposedModules instanceof Array ?
+        rawExposedModules.map(moduleNameToPath)
+        : Object.keys(rawExposedModules)
+            .reduce(function (prev, cur) { return prev.concat(rawExposedModules[cur]); }, [])
+            .map(moduleNameToPath);
+    return unfilteredTargetFiles.filter(function (x) { return exposedModules.filter(function (e) { return lodash_1.default.endsWith(x, e); })[0]; });
 }
 exports.getDependencyFiles = getDependencyFiles;
 function gather(directory) {

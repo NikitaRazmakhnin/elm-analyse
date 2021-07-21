@@ -20,7 +20,7 @@ function includedInFileSet(path: string): boolean {
 
 interface ElmPackage {
     'source-directories': string[];
-    'exposed-modules': string[];
+    'exposed-modules': string[] | { [key: string]: string[] };
 }
 
 function targetFilesForPathAndPackage(directory: string, path: string, pack: ElmPackage): string[] {
@@ -67,13 +67,16 @@ function getDependencyFiles(directory: string, dep: DependencyPointer) {
     const depPath = `${directory}/elm-stuff/packages/${dep.name}/${dep.version}`;
     const depPackageFile: ElmPackage = require(depPath + '/elm.json');
     const unfilteredTargetFiles: string[] = targetFilesForPathAndPackage(directory, depPath, depPackageFile);
+    const rawExposedModules = depPackageFile['exposed-modules'];
 
-    const exposedModules: string[] = depPackageFile['exposed-modules'].map(x =>
-        _path.normalize('/' + x.replace(new RegExp('\\.', 'g'), '/') + '.elm')
-    );
-    return unfilteredTargetFiles.filter(function(x) {
-        return exposedModules.filter(e => _.endsWith(x, e))[0];
-    });
+    const moduleNameToPath = (x: string) => _path.normalize('/' + x.replace(new RegExp('\\.', 'g'), '/') + '.elm');
+    const exposedModules: string[] = rawExposedModules instanceof Array ?
+        rawExposedModules.map(moduleNameToPath)
+      : Object.keys(rawExposedModules)
+          .reduce((prev, cur) => prev.concat((rawExposedModules as any)[cur]), [])
+          .map(moduleNameToPath);
+
+    return unfilteredTargetFiles.filter(x => exposedModules.filter(e => _.endsWith(x, e))[0]);
 }
 
 function gather(directory: string): { interfaceFiles: Array<string[]>; sourceFiles: string[] } {
