@@ -12,7 +12,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 var fs = __importStar(require("fs"));
 var lodash_1 = __importDefault(require("lodash"));
-var find = __importStar(require("find"));
 var _path = __importStar(require("path"));
 function isRealElmPaths(sourceDir, filePath) {
     var modulePath = filePath.replace(_path.normalize(sourceDir + '/'), '');
@@ -26,6 +25,21 @@ function includedInFileSet(path) {
     return path.indexOf('elm-stuff') === -1 && path.indexOf('node_modules') === -1;
 }
 exports.includedInFileSet = includedInFileSet;
+function getAllFilesInDirSync(pattern, dir) {
+    function getFiles(curDir, files) {
+        return fs
+            .readdirSync(curDir)
+            .map(function (file) {
+            var name = _path.join(curDir, file);
+            var isDir = fs.statSync(name).isDirectory();
+            var matchesPattern = pattern.test(file);
+            return isDir ? getFiles(name, files) :
+                matchesPattern ? [name] : [];
+        })
+            .reduce(function (acc, val) { return acc.concat(val); }, []);
+    }
+    return getFiles(dir, []);
+}
 function targetFilesForPathAndPackage(directory, path, pack) {
     var packTargetDirs = pack['source-directories'] || ['src'];
     var targetFiles = lodash_1.default.uniq(lodash_1.default.flatten(packTargetDirs.map(function (x) {
@@ -34,7 +48,7 @@ function targetFilesForPathAndPackage(directory, path, pack) {
         if (!exists) {
             return [];
         }
-        var dirFiles = find.fileSync(/\.elm$/, sourceDir).filter(function (x) {
+        var dirFiles = getAllFilesInDirSync(/\.elm$/, sourceDir).filter(function (x) {
             var resolvedX = _path.resolve(x);
             var resolvedPath = _path.resolve(path);
             var relativePath = resolvedX.replace(resolvedPath, '');

@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import _ from 'lodash';
-import * as find from 'find';
 import * as _path from 'path';
 import { DependencyPointer } from '../domain';
 
@@ -23,9 +22,26 @@ interface ElmPackage {
     'exposed-modules': string[] | { [key: string]: string[] };
 }
 
+function getAllFilesInDirSync(pattern: RegExp, dir: string): string[] {
+  function getFiles(curDir: string, files: string[]): string[] {
+    return fs
+      .readdirSync(curDir)
+      .map(file => {
+        const name = _path.join(curDir, file);
+        const isDir = fs.statSync(name).isDirectory();
+        const matchesPattern = pattern.test(file);
+
+        return isDir ? getFiles(name, files) :
+                       matchesPattern ? [name] : [];
+      })
+      .reduce((acc, val) => acc.concat(val), []);
+  }
+
+  return getFiles(dir, []);
+}
+
 function targetFilesForPathAndPackage(directory: string, path: string, pack: ElmPackage): string[] {
     const packTargetDirs: string[] = pack['source-directories'] || ['src'];
-
     const targetFiles = _.uniq(
         _.flatten(
             packTargetDirs.map(x => {
@@ -35,12 +51,13 @@ function targetFilesForPathAndPackage(directory: string, path: string, pack: Elm
                     return [];
                 }
 
-                const dirFiles = find.fileSync(/\.elm$/, sourceDir).filter(x => {
+                const dirFiles = getAllFilesInDirSync(/\.elm$/, sourceDir).filter(x => {
                     const resolvedX = _path.resolve(x);
                     const resolvedPath = _path.resolve(path);
                     const relativePath = resolvedX.replace(resolvedPath, '');
                     return includedInFileSet(relativePath) && x.length > 0;
                 });
+
                 return dirFiles.filter(x => isRealElmPaths(sourceDir, x));
             })
         )
